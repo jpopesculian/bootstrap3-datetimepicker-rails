@@ -1,4 +1,4 @@
-/*! version : 4.17.43
+/*! version : 4.17.44
  =========================================================
  bootstrap-datetimejs
  https://github.com/Eonasdan/bootstrap-datetimepicker
@@ -142,6 +142,10 @@
 
                 if (d === undefined || d === null) {
                     returnMoment = moment(); //TODO should this use format? and locale?
+                } else if (moment.isDate(d) || moment.isMoment(d)) {
+                    // If the date that is passed in is already a Date() or moment() object,
+                    // pass it directly to moment.
+                    returnMoment = moment(d);
                 } else if (hasTimeZone()) { // There is a string to parse and a default time zone
                     // parse with the tz function which takes a default time zone if it is not in the format string
                     returnMoment = moment.tz(d, parseFormats, options.useStrict, options.timeZone);
@@ -336,6 +340,7 @@
                 if (use24Hours) {
                     template.addClass('usetwentyfour');
                 }
+
                 if (isEnabled('s') && !use24Hours) {
                     template.addClass('wider');
                 }
@@ -686,7 +691,7 @@
                     currentDate,
                     html = [],
                     row,
-                    clsName,
+                    clsNames = [],
                     i;
 
                 if (!hasDate()) {
@@ -717,26 +722,31 @@
                         }
                         html.push(row);
                     }
-                    clsName = '';
+                    clsNames = ['day'];
                     if (currentDate.isBefore(viewDate, 'M')) {
-                        clsName += ' old';
+                        clsNames.push('old');
                     }
                     if (currentDate.isAfter(viewDate, 'M')) {
-                        clsName += ' new';
+                        clsNames.push('new');
                     }
                     if (currentDate.isSame(date, 'd') && !unset) {
-                        clsName += ' active';
+                        clsNames.push('active');
                     }
                     if (!isValid(currentDate, 'd')) {
-                        clsName += ' disabled';
+                        clsNames.push('disabled');
                     }
                     if (currentDate.isSame(getMoment(), 'd')) {
-                        clsName += ' today';
+                        clsNames.push('today');
                     }
                     if (currentDate.day() === 0 || currentDate.day() === 6) {
-                        clsName += ' weekend';
+                        clsNames.push('weekend');
                     }
-                    row.append('<td data-action="selectDay" data-day="' + currentDate.format('L') + '" class="day' + clsName + '">' + currentDate.date() + '</td>');
+                    notifyEvent({
+                        type: 'dp.classify',
+                        date: currentDate,
+                        classNames: clsNames
+                    });
+                    row.append('<td data-action="selectDay" data-day="' + currentDate.format('L') + '" class="' + clsNames.join(' ') + '">' + currentDate.date() + '</td>');
                     currentDate.add(1, 'd');
                 }
 
@@ -806,13 +816,16 @@
             },
 
             fillTime = function () {
-                var toggle, newDate, timeComponents = widget.find('.timepicker span[data-time-component]');
+                var currentDate = viewDate.clone(),
+                    toggle,
+                    newDate,
+                    timeComponents = widget.find('.timepicker span[data-time-component]');
 
                 if (!use24Hours) {
                     toggle = widget.find('.timepicker [data-action=togglePeriod]');
-                    newDate = date.clone().add((date.hours() >= 12) ? -12 : 12, 'h');
+                    newDate = currentDate.clone().add((currentDate.hours() >= 12) ? -12 : 12, 'h');
 
-                    toggle.text(date.format('A'));
+                    toggle.text(currentDate.format('A'));
 
                     if (isValid(newDate, 'h')) {
                         toggle.removeClass('disabled');
@@ -820,9 +833,9 @@
                         toggle.addClass('disabled');
                     }
                 }
-                timeComponents.filter('[data-time-component=hours]').text(date.format(use24Hours ? 'HH' : 'hh'));
-                timeComponents.filter('[data-time-component=minutes]').text(date.format('mm'));
-                timeComponents.filter('[data-time-component=seconds]').text(date.format('ss'));
+                timeComponents.filter('[data-time-component=hours]').text(currentDate.format(use24Hours ? 'HH' : 'hh'));
+                timeComponents.filter('[data-time-component=minutes]').text(currentDate.format('mm'));
+                timeComponents.filter('[data-time-component=seconds]').text(currentDate.format('ss'));
 
                 fillHours();
                 fillMinutes();
@@ -862,11 +875,15 @@
 
                 if (options.stepping !== 1) {
                     targetMoment.minutes((Math.round(targetMoment.minutes() / options.stepping) * options.stepping)).seconds(0);
+
+                    while (options.minDate && targetMoment.isBefore(options.minDate)) {
+                        targetMoment.add(options.stepping, 'minutes');
+                    }
                 }
 
                 if (isValid(targetMoment)) {
                     date = targetMoment;
-                    //viewDate = date.clone(); // TODO this doesn't work right on first use
+                    viewDate = date.clone();
                     input.val(date.format(actualFormat));
                     element.data('date', date.format(actualFormat));
                     unset = false;
@@ -932,9 +949,6 @@
                 });
 
                 input.blur();
-
-                currentViewMode = 0;
-                viewDate = date.clone();
 
                 return picker;
             },
@@ -2310,6 +2324,7 @@
             }
 
             viewDate = parseInputDate(newDate);
+            update();
             viewUpdate();
             return picker;
         };
@@ -2339,11 +2354,11 @@
             throw new Error('Could not initialize DateTimePicker without an input element');
         }
 
+        $.extend(true, options, dataToOptions());
+
         // Set defaults for date here now instead of in var declaration
         date = getMoment();
-        viewDate = date.clone();
-
-        $.extend(true, options, dataToOptions());
+        viewDate = (options.viewDate && options.viewDate.clone()) || date.clone();
 
         picker.options(options);
 
@@ -2402,11 +2417,12 @@
 
         if (typeof options === 'object') {
             return this.each(function () {
-                var $this = $(this);
+                var $this = $(this),
+                    _options;
                 if (!$this.data('DateTimePicker')) {
                     // create a private copy of the defaults object
-                    options = $.extend(true, {}, $.fn.datetimepicker.defaults, options);
-                    $this.data('DateTimePicker', dateTimePicker($this, options));
+                    _options = $.extend(true, {}, $.fn.datetimepicker.defaults, options);
+                    $this.data('DateTimePicker', dateTimePicker($this, _options));
                 }
             });
         } else if (typeof options === 'string') {
@@ -2617,7 +2633,6 @@
         enabledHours: false,
         viewDate: false
     };
-    if (typeof module !== 'undefined') {
-        module.exports = $.fn.datetimepicker;
-    }
+
+    return $.fn.datetimepicker;
 }));

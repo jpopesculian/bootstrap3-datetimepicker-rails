@@ -471,12 +471,6 @@
                 });
             },
 
-            linkWidgetAndElement = function () {
-                var randomId = Math.round((Math.random() + Date.now()) * 1000);
-                widget.attr('data-datetimepicker-id', randomId);
-                element.attr('data-datetimepicker-id', randomId);
-            },
-
             notifyEvent = function (e) {
                 if (e.type === 'dp.change' && ((e.date && e.date.isSame(e.oldDate)) || (!e.date && !e.oldDate))) {
                     return;
@@ -1240,7 +1234,6 @@
                     setValue(currentMoment);
                 }
                 widget = getTemplate();
-                linkWidgetAndElement();
 
                 fillDow();
                 fillMonths();
@@ -2360,6 +2353,10 @@
                 }
             }
             return picker;
+        };
+
+        picker.getWidget = function () {
+            return widget;
         };
 
         // initializing element and component attributes

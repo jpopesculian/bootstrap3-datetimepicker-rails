@@ -1,4 +1,4 @@
-/*! version : 4.17.46
+/*! version : 4.17.49
  =========================================================
  bootstrap-datetimejs
  https://github.com/Eonasdan/bootstrap-datetimepicker
@@ -403,7 +403,7 @@
             },
 
             place = function () {
-                var position = (component || element).position(),
+                var PADDING = 3,
                     offset = (component || element).offset(),
                     vertical = options.widgetPositioning.vertical,
                     horizontal = options.widgetPositioning.horizontal,
@@ -433,7 +433,7 @@
 
                 // Left and right logic
                 if (horizontal === 'auto') {
-                    if (parent.width() < offset.left + widget.outerWidth() / 2 &&
+                    if ($(window).width() > widget.outerWidth() &&
                         offset.left + widget.outerWidth() > $(window).width()) {
                         horizontal = 'right';
                     } else {
@@ -453,23 +453,28 @@
                     widget.removeClass('pull-right');
                 }
 
-                // find the first parent element that has a relative css positioning
-                if (parent.css('position') !== 'relative') {
+                // find the first parent element that has a non-static css positioning
+                if (parent.css('position') === 'static') {
                     parent = parent.parents().filter(function () {
-                        return $(this).css('position') === 'relative';
+                        return $(this).css('position') !== 'static';
                     }).first();
                 }
 
                 if (parent.length === 0) {
-                    throw new Error('datetimepicker component should be placed within a relative positioned container');
+                    throw new Error('datetimepicker component should be placed within a non-static positioned container');
                 }
 
-                widget.css({
-                    top: vertical === 'top' ? 'auto' : position.top + element.outerHeight(),
-                    bottom: vertical === 'top' ? parent.outerHeight() - (parent === element ? 0 : position.top) : 'auto',
-                    left: horizontal === 'left' ? (parent === element ? 0 : position.left) : 'auto',
-                    right: horizontal === 'left' ? 'auto' : parent.outerWidth() - element.outerWidth() - (parent === element ? 0 : position.left)
+                widget.position({
+                    my: horizontal + ' ' + (vertical === 'top' ? 'bottom-' + PADDING : 'top+' + PADDING),
+                    at: horizontal + ' ' + vertical,
+                    of: element
                 });
+            },
+
+            linkWidgetAndElement = function () {
+                var randomId = Math.round((Math.random() + Date.now()) * 1000);
+                widget.attr('data-datetimepicker-id', randomId);
+                element.attr('data-datetimepicker-id', randomId);
             },
 
             notifyEvent = function (e) {
@@ -960,7 +965,7 @@
 
             parseInputDate = function (inputDate) {
                 if (options.parseInputDate === undefined) {
-                    if (!moment.isMoment(inputDate)) {
+                    if (!moment.isMoment(inputDate) || inputDate instanceof Date) {
                         inputDate = getMoment(inputDate);
                     }
                 } else {
@@ -1235,6 +1240,7 @@
                     setValue(currentMoment);
                 }
                 widget = getTemplate();
+                linkWidgetAndElement();
 
                 fillDow();
                 fillMonths();
@@ -1253,8 +1259,8 @@
                 if (component && component.hasClass('btn')) {
                     component.toggleClass('active');
                 }
-                place();
                 widget.show();
+                place();
                 if (options.focusOnShow && !input.is(':focus')) {
                     input.focus();
                 }
@@ -1430,7 +1436,10 @@
                 if (!unset) {
                     setValue(date);
                 }
-            };
+            },
+            //variables for setInlineView
+            setInlineViewCache,
+            elems;
 
         /********************************************************************************
          *
@@ -2330,6 +2339,29 @@
             return picker;
         };
 
+        /**
+         * Sets the view in inline mode
+         * @param {Takes string, 'datepicker', 'timepicker'} newDate
+         * @returns {picker instance}
+         */
+        picker.setInlineView = function (view) {
+            if (picker.options().inline) {
+                var cache = picker.setInlineView.cache;
+                if (view === 'datepicker') {
+                    //show the date picker
+                    cache.firstLi.collapse('show');
+                    cache.lastLi.collapse('hide');
+                    cache.span.removeClass('glyphicon-calendar').addClass('glyphicon-time');
+                } else if (view === 'timepicker') {
+                    //show the time picker
+                    cache.firstLi.collapse('hide');
+                    cache.lastLi.collapse('show');
+                    cache.span.removeClass('glyphicon-time').addClass('glyphicon-calendar');
+                }
+            }
+            return picker;
+        };
+
         // initializing element and component attributes
         if (element.is('input')) {
             input = element;
@@ -2383,6 +2415,13 @@
         }
         if (options.inline) {
             show();
+            elems = $('li', widget);
+            setInlineViewCache = {
+                firstLi : elems.first(),
+                span: elems.first().next().find('span'),
+                lastLi : elems.last()
+            };
+            picker.setInlineView.cache = setInlineViewCache;
         }
         return picker;
     };

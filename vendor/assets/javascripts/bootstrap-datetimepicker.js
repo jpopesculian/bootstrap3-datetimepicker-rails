@@ -1,4 +1,4 @@
-/*! version : 4.17.49
+/*! version : 4.17.50
  =========================================================
  bootstrap-datetimejs
  https://github.com/Eonasdan/bootstrap-datetimepicker
@@ -471,6 +471,17 @@
                 });
             },
 
+            elementIsFixed = function () {
+                var isFixed = false;
+                element.add(element.parents()).each(function (i, elem) {
+                    if ($(elem).css('position') === 'fixed') {
+                        isFixed = true;
+                        return false;
+                    }
+                });
+                return isFixed;
+            },
+
             notifyEvent = function (e) {
                 if (e.type === 'dp.change' && ((e.date && e.date.isSame(e.oldDate)) || (!e.date && !e.oldDate))) {
                     return;
@@ -936,9 +947,7 @@
                 }
                 widget.hide();
 
-                $(window).off('resize', place);
-                widget.off('click', '[data-action]');
-                widget.off('mousedown', false);
+                detachWidgetElementEvents();
 
                 widget.remove();
                 widget = false;
@@ -1245,9 +1254,7 @@
                 update();
                 showMode();
 
-                $(window).on('resize', place);
-                widget.on('click', '[data-action]', doAction); // this handles clicks on the widget
-                widget.on('mousedown', false);
+                attachWidgetElementEvents();
 
                 if (component && component.hasClass('btn')) {
                     component.toggleClass('active');
@@ -1369,6 +1376,22 @@
                     component.off('click', toggle);
                     component.off('mousedown', false);
                 }
+            },
+
+            attachWidgetElementEvents = function () {
+                $(window).on('resize', place);
+                if (elementIsFixed()) {
+                    window.addEventListener('scroll', place, true);
+                }
+                widget.on('click', '[data-action]', doAction); // this handles clicks on the widget
+                widget.on('mousedown', false);
+            },
+
+            detachWidgetElementEvents = function () {
+                $(window).off('resize', place);
+                window.removeEventListener('scroll', place, true);
+                widget.off('click', '[data-action]');
+                widget.off('mousedown', false);
             },
 
             indexGivenDates = function (givenDatesArray) {
